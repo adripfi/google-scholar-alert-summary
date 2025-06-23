@@ -16,4 +16,4 @@ Using the same Google account as you use for GMail, create a new [Google Apps Sc
 
 <img width="593" alt="image" src="https://github.com/user-attachments/assets/f0a6d18c-04b0-4423-930a-a36af3f3ca8c" />
 
-Now the raw scholar alerts will be hidden from you, and you'll get a summary periodically. If an article is listed for multiple reasons, the summary lists them all.
+Now the raw scholar alerts will be hidden from you, and you'll get a summary periodically. If an article is listed for multiple reasons, the summary lists them all. Once the script has sent you a summary, it deletes the raw alert emails from your account.
