@@ -1,28 +1,30 @@
 function processScholarAlerts() {
   const query = 'from:scholaralerts-noreply@google.com';
-  // Set the maximum number of threads to process in one execution.
   const MAX_THREADS = 250;
   const threads = GmailApp.search(query, 0, MAX_THREADS);
-  const articles = new Map(); // key: title, value: { url, snippet, reasons: Set<string> }
+  const articles = new Map(); // key: title, value: { url, snippet, reasons: Set<string>, authors: string }
 
-  const articleRegex = /<a[^>]+href="([^"]+)"[^>]*class="gse_alrt_title"[^>]*>(.*?)<\/a>[\s\S]*?<div[^>]+class="gse_alrt_sni"[^>]*>([\s\S]*?)<\/div>/g;
-
+  // Regex to extract title, URL, snippet, and now authors.
+  const articleRegex = /<h3[^>]*>[\s\S]*?(?:<span[^>]+class="gs_alrt_label"[^>]*>\[(.*?)\]<\/span>)?[\s\S]*?<a[^>]+href="([^"]+)"[^>]*class="gse_alrt_title"[^>]*>(.*?)<\/a>[\s\S]*?<div[^>]+style="color:#006621[^>]*>([\s\S]*?)<\/div>[\s\S]*?<div[^>]+class="gse_alrt_sni"[^>]*>([\s\S]*?)<\/div>/g;
+  
   threads.forEach(thread => {
     const reason = thread.getFirstMessageSubject().trim();
     thread.getMessages().forEach(msg => {
       const html = msg.getBody();
       let match;
       while ((match = articleRegex.exec(html)) !== null) {
-        const url = decodeEntities(match[1]);
-        const title = decodeEntities(match[2].trim());
-        const snippet = decodeEntities(match[3].replace(/<br\s*\/?>/gi, ' ').trim());
-        // Logger.log(title);
+        const url = decodeEntities(match[2]);
+        const title = decodeEntities(match[3].trim());
+        const authors = decodeEntities(match[4].trim()).replace(/<[^>]*>?/g, ''); // Extract authors and strip HTML
+        const snippet = decodeEntities(match[5].replace(/<br\s*\/?>/gi, ' ').trim());
+        Logger.log(title);
 
         if (!articles.has(title)) {
           articles.set(title, {
             url,
             snippet,
-            reasons: new Set([reason])
+            reasons: new Set([reason]),
+            authors
           });
         } else {
           articles.get(title).reasons.add(reason);
@@ -36,7 +38,7 @@ function processScholarAlerts() {
     return;
   }
 
-  // --- MODIFIED HTML GENERATION ---
+  // --- MODIFIED HTML GENERATION WITH GOOGLE SCHOLAR LAYOUT ---
   let htmlBody = `
     <!DOCTYPE html>
     <html>
@@ -45,58 +47,58 @@ function processScholarAlerts() {
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
           
           body { 
-            font-family: 'Inter', sans-serif; 
+            font-family: 'Inter', arial, sans-serif; 
+            font-size: 13px;
             line-height: 1.6; 
-            color: #000000; /* Pure black font color */
-            background-color: #f4f4f9; 
-            padding: 20px; 
+            color: #222;
+            background-color: #ffffff; 
+            padding: 20px;
           }
           .container { 
-            max-width: 800px; 
+            max-width: 600px; 
             margin: 0 auto; 
-            background-color: #fff; 
-            border-radius: 8px; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
-            padding: 20px; 
           }
           .header { 
-            text-align: left; /* Aligned left */
-            padding-bottom: 0; 
+            text-align: left;
             margin-bottom: 20px; 
           }
           h1 { 
-            color: #2c3e50; 
-            font-size: 24px; 
-            margin-top: 0; 
+            font-size: 20px; 
+            font-weight: bold;
+            margin: 0 0 10px 0;
+            color: #2c3e50;
           }
-          .article-card { 
-            border: 1px solid #ddd; 
-            border-radius: 6px; 
-            padding: 15px; 
-            margin-bottom: 15px; 
-            transition: box-shadow 0.3s ease; 
+          .alert-reason {
+            font-style: italic;
+            font-size: 11px;
+            color: #7f8c8d;
+            margin-bottom: 10px;
           }
-          .article-card:hover { 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+          .article-block {
+            margin-bottom: 30px; /* Increased space between articles */
           }
-          .article-title a { 
-            font-size: 18px; 
-            font-weight: 600; 
-            color: #3498db; 
-            text-decoration: none; 
+          .article-title {
+            font-weight: normal; 
+            margin: 0;
+            font-size: 17px;
+            line-height: 22px;
           }
-          .article-title a:hover { 
-            text-decoration: underline; 
+          .article-title a {
+            color: #1a0dab;
+            text-decoration: none;
           }
-          .reasons { 
-            font-style: italic; 
-            color: #7f8c8d; 
-            font-size: 12px; 
-            margin-top: 5px; 
+          .article-title a:hover {
+            text-decoration: underline;
           }
-          .snippet { 
-            color: #555; 
-            margin-top: 10px; 
+          .article-authors {
+            color: #006621;
+            line-height: 18px;
+            margin-top: 5px;
+            font-size: 13px;
+          }
+          .article-snippet {
+            line-height: 17px;
+            margin-top: 5px;
           }
         </style>
       </head>
@@ -107,15 +109,18 @@ function processScholarAlerts() {
             <p>Here are your deduplicated Google Scholar alerts.</p>
           </div>
   `;
-  for (const [title, { url, snippet, reasons }] of articles.entries()) {
+
+  for (const [title, { url, snippet, reasons, authors }] of articles.entries()) {
     htmlBody += `
-      <div class="article-card">
+      <div class="article-block">
+        <p class="alert-reason">Alert Reason: ${[...reasons].join(" • ")}</p>
         <h3 class="article-title"><a href="${url}">${title}</a></h3>
-        <p class="reasons">${[...reasons].join(" • ")}</p>
-        <p class="snippet">${snippet}</p>
+        <p class="article-authors">${authors}</p>
+        <div class="article-snippet">${snippet}</div>
       </div>
     `;
   }
+
   htmlBody += `
         </div>
       </body>
@@ -129,7 +134,6 @@ function processScholarAlerts() {
     { htmlBody: htmlBody }
   );
 
-  // Move threads to trash after successful send
   threads.forEach(thread => thread.moveToTrash());
 }
 
