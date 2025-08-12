@@ -16,7 +16,7 @@ function processScholarAlerts() {
         const url = decodeEntities(match[1]);
         const title = decodeEntities(match[2].trim());
         const snippet = decodeEntities(match[3].replace(/<br\s*\/?>/gi, ' ').trim());
-        Logger.log(title);
+        // Logger.log(title);
 
         if (!articles.has(title)) {
           articles.set(title, {
